@@ -1,92 +1,183 @@
-# Sys_RandMax_Thomas_Boudeele
+Parfait ✅
+Voici le **résumé global du projet**, mais **centré uniquement sur le niveau 2**, c’est-à-dire la **version distribuée sur deux ordinateurs (PC1 et PC2)**.
 
+---
 
+# 🌐 **Résumé global du projet – Niveau 2 : deux PC en coopération**
 
-## Getting started
+---
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## 🎯 **Objectif**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+Mettre en place un **programme distribué en C** qui teste la **répartition et la qualité d’un générateur aléatoire** (`rand()`, `random()`, etc.)
+sur **toute la plage possible** `[0, RAND_MAX]`,
+en **divisant le travail entre deux ordinateurs** pour **doubler la vitesse d’exécution**.
 
-## Add your files
+---
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## 🖥️ **Principe général**
+
+Le calcul est partagé entre :
+
+* **PC1 (serveur principal)**
+  → Coordonne le test, fait sa moitié des tirages, récupère les résultats du second PC et effectue la fusion finale.
+* **PC2 (client distant)**
+  → Reçoit sa portion de la plage à traiter, fait sa partie du calcul, puis renvoie les résultats à PC1.
+
+Les deux machines réalisent **le même type de travail localement** (génération aléatoire, comptage, mémoire partagée),
+mais elles communiquent entre elles via une **connexion réseau TCP/IP**.
+
+---
+
+## ⚙️ **Déroulement du programme**
+
+### 🟢 Étape 1 — Lancement du serveur (PC1)
+
+* Démarre en **mode serveur TCP**.
+* Attend la connexion du client.
+* Une fois connecté, il :
+
+  * Envoie à PC2 les paramètres du test (bornes de la plage, nombre de tirages à effectuer, etc.).
+  * Lance ses **propres processus locaux** pour traiter la première moitié de la plage (`0 → RAND_MAX / 2`).
+
+### 🔵 Étape 2 — Lancement du client (PC2)
+
+* Démarre en **mode client TCP** et se connecte à PC1 via son adresse IP.
+* Reçoit la **plage de valeurs** à traiter (par exemple `RAND_MAX / 2 + 1 → RAND_MAX`).
+* Exécute sa partie du travail localement :
+
+  * Crée plusieurs **processus fils** avec `fork()`.
+  * Utilise une **mémoire partagée locale (IPC)** pour stocker les compteurs.
+  * Réalise ses tirages aléatoires et remplit son tableau de fréquences.
+
+### 🔁 Étape 3 — Échanges de données
+
+* Une fois son travail terminé, PC2 envoie son **tableau de résultats** à PC1 par la **socket TCP**.
+* Les données envoyées peuvent être :
+
+  * Un **tableau complet** (si la mémoire et le réseau le permettent),
+  * Ou un **ensemble de “buckets” agrégés** (par blocs de valeurs).
+* PC1 reçoit ces données et les stocke dans un tableau global.
+
+### ⚙️ Étape 4 — Fusion et analyse
+
+* PC1 additionne ses propres résultats et ceux reçus de PC2 pour obtenir la **distribution complète sur `[0, RAND_MAX]`**.
+* Il calcule ensuite :
+
+  * La **fréquence moyenne** des tirages,
+  * La **variance et l’écart-type**,
+  * Les **valeurs minimales et maximales**,
+  * Et éventuellement un **test d’uniformité** (comme le χ²).
+* Les résultats sont affichés ou enregistrés pour analyse.
+
+### 🧹 Étape 5 — Nettoyage
+
+* Les deux machines libèrent leurs ressources locales :
+
+  * Détachement et suppression de la mémoire partagée.
+  * Fermeture des sockets réseau.
+* Le serveur met fin à la session après confirmation du client.
+
+---
+
+## 📊 **Répartition du travail**
+
+| Ordinateur        | Rôle                             | Plage de valeurs traitée        | Tirages effectués |
+| ----------------- | -------------------------------- | ------------------------------- | ----------------- |
+| **PC1 (serveur)** | Calcule + fusionne les résultats | 0 → `RAND_MAX / 2`              | `N_TOTAL / 2`     |
+| **PC2 (client)**  | Calcule et envoie ses résultats  | `RAND_MAX / 2 + 1` → `RAND_MAX` | `N_TOTAL / 2`     |
+
+---
+
+## 🔗 **Communication réseau**
+
+* **Protocole :** TCP/IP (connexion fiable entre les deux machines).
+* **Sens principal des données :**
+
+  * Serveur → Client : paramètres du calcul.
+  * Client → Serveur : tableau de résultats.
+* **Réseau local recommandé** pour éviter les délais.
+* Les données peuvent être envoyées **en binaire brut** pour maximiser la vitesse.
+
+---
+
+## 🧱 **Architecture logique**
 
 ```
-cd existing_repo
-git remote add origin https://www-apps.univ-lehavre.fr/forge/bt220243/sys_randmax_thomas_boudeele.git
-git branch -M main
-git push -uf origin main
+                 ┌──────────────────────────────┐
+                 │         PC1 (Serveur)        │
+                 │------------------------------│
+                 │ - Crée une socket TCP        │
+                 │ - Envoie la plage à PC2      │
+                 │ - Fait sa propre moitié      │
+                 │ - Reçoit résultats du client │
+                 │ - Fusionne et analyse        │
+                 └──────────┬───────────────────┘
+                            │
+                     Connexion TCP/IP
+                            │
+                            ▼
+                 ┌──────────────────────────────┐
+                 │         PC2 (Client)         │
+                 │------------------------------│
+                 │ - Se connecte au serveur     │
+                 │ - Reçoit sa plage            │
+                 │ - Fait sa propre moitié      │
+                 │ - Envoie ses résultats       │
+                 └──────────────────────────────┘
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://www-apps.univ-lehavre.fr/forge/bt220243/sys_randmax_thomas_boudeele/-/settings/integrations)
+## ✅ **Résultat final**
 
-## Collaborate with your team
+À la fin du calcul :
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+* Le **serveur (PC1)** dispose de la **distribution complète** du générateur aléatoire sur la totalité de `[0, RAND_MAX]`.
+* Le **temps total d’exécution** est presque **divisé par deux**, car les deux PC travaillent en parallèle.
+* Les **résultats** permettent d’évaluer :
 
-## Test and Deploy
+  * L’uniformité du générateur,
+  * La régularité de la distribution,
+  * Et les éventuels biais ou anomalies sur certaines plages.
 
-Use the built-in continuous integration in GitLab.
+---
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## ⚡ **Avantages**
 
-***
+✅ Calcul réellement **distribué et parallèle**.
+✅ Communication réseau simple et standard (sockets TCP).
+✅ Architecture **scalable** (facile à étendre à plus de PC plus tard).
+✅ Fusion centralisée des résultats sur une seule machine (PC1).
 
-# Editing this README
+---
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## ⚠️ **Points de vigilance**
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+* La **mémoire partagée** reste **locale à chaque PC** — elle ne circule pas sur le réseau.
+* Il faut **envoyer les résultats agrégés** (ou par blocs) si la taille des données est trop importante.
+* Bien gérer :
 
-## Name
-Choose a self-explaining name for your project.
+  * Les **déconnexions éventuelles**,
+  * Les **différences de vitesse** entre les deux machines,
+  * Les **permissions réseau et pare-feu**.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## 🧩 **En résumé**
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+| Élément            | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| Nombre de machines | 2                                                    |
+| Communication      | TCP/IP via sockets                                   |
+| Rôle du serveur    | Coordonne, calcule, reçoit, fusionne                 |
+| Rôle du client     | Calcule et envoie ses résultats                      |
+| Travail total      | Plage complète `[0, RAND_MAX]` divisée en deux       |
+| Mémoire partagée   | Locale à chaque machine                              |
+| Synchronisation    | Par protocole réseau                                 |
+| Objectif final     | Tester l’uniformité complète du générateur aléatoire |
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+---
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Souhaites-tu que je te fasse une **représentation graphique** du fonctionnement entre les deux PC (avec étapes numérotées) à mettre dans ton rapport ?
+Ce serait parfait pour illustrer cette architecture distribuée.

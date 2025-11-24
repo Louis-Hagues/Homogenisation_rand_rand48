@@ -45,6 +45,3 @@ int traitement_rand48(int tirages, int plage, int* tabResultats) {
         }
     }
 }
-
-
-    

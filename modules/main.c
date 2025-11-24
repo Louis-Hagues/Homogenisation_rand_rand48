@@ -1,11 +1,14 @@
 #include <stdio.h>
-#include "traitement.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+#include "traitement.c"
 
     const int plage = 100;
 int main() {
     int tirages = 1000000;
     int tabResultats[plage];
-    traitement_rand(tirages, plage, tabResultats);
+    //traitement_rand(tirages, plage, tabResultats);
     traitement_rand48(tirages, plage, tabResultats);
 
     printf("Résultats:\n");

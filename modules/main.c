@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
 		if (client_fd < 0) { close(server_sock); return 1; }
 		printf("Client connecté.\n");
 
-		/* server chooses RNG */
+
 		int rng_choice = 0;
 		printf("Choisir RNG (0 = rand, 1 = drand48) : ");
 		if (scanf("%d", &rng_choice) != 1) rng_choice = 0;
@@ -83,18 +83,24 @@ int main(int argc, char **argv) {
 		}
 		printf("RNG envoyé au client: %d\n", rng_choice);
 
-		/* create shared memory */
+
 		int shmid = shmget(IPC_PRIVATE, (size_t)tab_size * sizeof(int), IPC_CREAT | SHM_PERMISSIONS);
 		if (shmid < 0) { perror("shmget"); close(client_fd); close(server_sock); return 1; }
 		int *shared = (int*) shmat(shmid, NULL, 0);
 		if (shared == (void*)-1) { perror("shmat"); shmctl(shmid, IPC_RMID, NULL); close(client_fd); close(server_sock); return 1; }
 		memset(shared, 0, (size_t)tab_size * sizeof(int));
 
-		/* create semaphore (named) */
 		sem_t *sem = sem_open(SEMNAME_SERVER, O_CREAT, 0644, 1);
-		if (sem == SEM_FAILED) { perror("sem_open"); shmdt(shared); shmctl(shmid, IPC_RMID, NULL); close(client_fd); close(server_sock); return 1; }
+		if (sem == SEM_FAILED) 
+		{ 
+			perror("sem_open"); 
+			shmdt(shared); 
+			shmctl(shmid, IPC_RMID, NULL); 
+			close(client_fd); 
+			close(server_sock); 
+			return 1; 
+		}
 
-		/* server runs its own 500M iterations in parallel */
 		printf("Serveur: lancement du traitement local (500M iterations)...\n");
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
 			fprintf(stderr, "Erreur traitement serveur\n");
@@ -102,15 +108,13 @@ int main(int argc, char **argv) {
 			printf("Serveur: traitement local terminé.\n");
 		}
 
-		/* now receive client's array (network-order uint32 per element) and merge */
 		printf("Serveur: attente des données du client...\n");
-		// allocate buffer to receive in chunks to avoid too large malloc at once
-		// We'll receive in blocks of up to 1 million ints (4MB) to limit memory
+
 		const uint64_t block_elems = 1000000UL;
 		uint64_t elems_remaining = tab_size;
 		uint64_t idx = 0;
 		uint32_t *buf = malloc(block_elems * sizeof(uint32_t));
-		if (!buf) { perror("malloc recv buf"); /* still try to finish */ }
+		if (!buf) { perror("malloc recv buf");}
 
 		while (elems_remaining > 0) {
 			uint64_t this_block = (elems_remaining > block_elems) ? block_elems : elems_remaining;
@@ -120,7 +124,7 @@ int main(int argc, char **argv) {
 				free(buf);
 				break;
 			}
-			// convert and merge
+
 			for (uint64_t i = 0; i < this_block; ++i) {
 				uint32_t v = ntohl(buf[i]);
 				__atomic_fetch_add(&shared[idx + i], (int)v, __ATOMIC_SEQ_CST);
@@ -130,10 +134,9 @@ int main(int argc, char **argv) {
 		}
 		free(buf);
 
-		/* compute stats and print */
 		calc_stats_and_print(shared, tab_size, "agrégé (server+client)");
 
-		/* cleanup */
+
 		shmdt(shared);
 		shmctl(shmid, IPC_RMID, NULL);
 		sem_close(sem);
@@ -149,7 +152,7 @@ int main(int argc, char **argv) {
 		if (sock < 0) return 1;
 		printf("Connecté au serveur %s:%d\n", server_ip, port_client);
 
-		// receive rng_choice
+
 		int32_t rc_net;
 		if (recv_all(sock, &rc_net, sizeof(rc_net)) < 0) {
 			perror("recv rng_choice");
@@ -159,15 +162,27 @@ int main(int argc, char **argv) {
 		int rng_choice = (int)ntohl(rc_net);
 		printf("RNG choisi par serveur: %d (%s)\n", rng_choice, rng_choice ? "drand48" : "rand");
 
-		// create shared memory local
 		int shmid = shmget(IPC_PRIVATE, (size_t)tab_size * sizeof(int), IPC_CREAT | SHM_PERMISSIONS);
 		if (shmid < 0) { perror("shmget client"); close(sock); return 1; }
 		int *shared = (int*) shmat(shmid, NULL, 0);
-		if (shared == (void*)-1) { perror("shmat client"); shmctl(shmid, IPC_RMID, NULL); close(sock); return 1; }
+		if (shared == (void*)-1) 
+		{ 
+			perror("shmat client"); 
+			shmctl(shmid, IPC_RMID, NULL); 
+			close(sock); 
+			return 1; 
+		}
 		memset(shared, 0, (size_t)tab_size * sizeof(int));
 
 		sem_t *sem = sem_open(SEMNAME_SERVER, O_CREAT, 0644, 1);
-		if (sem == SEM_FAILED) { perror("sem_open client"); shmdt(shared); shmctl(shmid, IPC_RMID, NULL); close(sock); return 1; }
+		if (sem == SEM_FAILED) 
+		{ 
+			perror("sem_open client"); 
+			shmdt(shared); 
+			shmctl(shmid, IPC_RMID, NULL); 
+			close(sock); 
+			return 1; 
+		}
 
 		printf("Client: lancement du traitement local (500M iterations)...\n");
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
@@ -176,7 +191,6 @@ int main(int argc, char **argv) {
 			printf("Client: traitement local terminé.\n");
 		}
 
-		/* send shared to server in blocks (network order) */
 		const uint64_t block_elems = 1000000UL;
 		uint64_t elems_remaining = tab_size;
 		uint64_t idx = 0;
@@ -199,10 +213,8 @@ int main(int argc, char **argv) {
 		}
 		free(buf);
 
-		/* Optionally compute and show client's own stats */
 		calc_stats_and_print(shared, tab_size, "client local");
 
-		/* cleanup */
 		shmdt(shared);
 		shmctl(shmid, IPC_RMID, NULL);
 		sem_close(sem);

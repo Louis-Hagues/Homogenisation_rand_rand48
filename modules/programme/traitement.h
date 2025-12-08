@@ -4,8 +4,8 @@
 #include <semaphore.h>
 #include <stdint.h>
 
-/* Taille par défaut : tu peux remplacer par 1000000000 (1e9) */
-#define TAB_SIZE_DEFAULT 1000000000UL
+/* Taille par défaut (1e9) */
+#define TAB_SIZE_DEFAULT RAND_MAX
 
 /* Nombre de fils à lancer */
 #define NB_FILS 20

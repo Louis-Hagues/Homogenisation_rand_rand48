@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stdint.h>
+#include <math.h>
+#include <limits.h>
 
 #include "programme/traitement.h"
 
@@ -101,7 +103,7 @@ int main(int argc, char **argv) {
 			return 1; 
 		}
 
-		printf("Serveur: lancement du traitement local (500M iterations)...\n");
+		printf("Serveur: lancement du traitement local %lld de tirages...\n",ITER_PER_MACHINE);
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
 			fprintf(stderr, "Erreur traitement serveur\n");
 		} else {
@@ -134,7 +136,14 @@ int main(int argc, char **argv) {
 		}
 		free(buf);
 
-		calc_stats_and_print(shared, tab_size, "agrégé (server+client)");
+		if (tab_size > (uint64_t)INT_MAX) {
+			fprintf(stderr, "Erreur: tab_size (%lu) dépasse INT_MAX, print_stats attend int nb_classes.\n",
+					(unsigned long)tab_size);
+		} else {
+			print_stats((long long)(2ULL * (unsigned long long)ITER_PER_MACHINE),
+						shared,
+						(int)tab_size);
+		}
 
 
 		shmdt(shared);
@@ -213,8 +222,15 @@ int main(int argc, char **argv) {
 		}
 		free(buf);
 
-		calc_stats_and_print(shared, tab_size, "client local");
-
+		if (tab_size > (uint64_t)INT_MAX) {
+			fprintf(stderr, "Erreur: tab_size (%lu) dépasse INT_MAX, print_stats attend int nb_classes.\n",
+					(unsigned long)tab_size);
+		} else {
+			print_stats((long long)(1ULL * (unsigned long long)ITER_PER_MACHINE),
+						shared,
+						(int)tab_size);
+		}
+		
 		shmdt(shared);
 		shmctl(shmid, IPC_RMID, NULL);
 		sem_close(sem);

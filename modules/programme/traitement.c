@@ -9,6 +9,8 @@
 #include <string.h>
 #include <semaphore.h>
 #include <fcntl.h>
+#include <math.h>
+#include <limits.h>
 
 
 static void child_work(int *shared_tab, uint64_t tab_size, long long iter_child, int rng_type) 
@@ -68,30 +70,54 @@ int run_parallel_shared(int *shared_tab, uint64_t tab_size, long long iter_per_m
 	return 0;
 }
 
-void calc_stats_and_print(int *shared_tab, uint64_t tab_size, const char *label) {
-	if (!shared_tab) return;
+void print_stats(long long total, const int *counts, int nb_classes)
+{
+	int min = INT_MAX;
+	int max = 0;
+	int zero_count = 0;
 
-	long long total = 0;
-	int min = shared_tab[0], max = shared_tab[0];
-	for (uint64_t i = 0; i < tab_size; ++i) {
-		int v = shared_tab[i];
-		if (v < min) min = v;
-		if (v > max) max = v;
-		total += v;
+	double mean = (double)total / nb_classes;
+	double variance = 0.0;
+	double chi2 = 0.0;
+
+	/* Parcours des classes */
+	for (int i = 0; i < nb_classes; i++) {
+		int c = counts[i];
+
+		if (c == 0)
+			zero_count++;
+
+		if (c < min)
+			min = c;
+		if (c > max)
+			max = c;
+
+		double diff = c - mean;
+		variance += diff * diff;
+
+		if (mean > 0.0)
+			chi2 += (diff * diff) / mean;
 	}
-	double avg = (double)total / (double)tab_size;
+
+	variance /= nb_classes;
+	double stddev = sqrt(variance);
+	double cv = (mean > 0.0) ? stddev / mean : 0.0;
+
 	double largeur = (max > 0) ? ((double)(max - min) / (double)max) * 100.0 : 0.0;
 
-	printf("\n=== Stats (%s) ===\n", label ? label : "résultat");
-	printf("Tab size: %lu\n", (unsigned long)tab_size);
-	printf("Total tirages comptés: %lld\n", total);
-	printf("Min: %d\n", min);
-	printf("Max: %d\n", max);
-	printf("Average: %.6f\n", avg);
-	printf("Largeur ( (max-min)/max *100 ) = %.6f %%\n", largeur);
+	/* Affichage */
+	printf("Total tirages comptés : %lld\n", total);
+	printf("Nombre de classes     : %d\n", nb_classes);
+	printf("Classes vides         : %d\n", zero_count);
+	printf("Min occurrences       : %d\n", min);
+	printf("Max occurrences       : %d\n", max);
 
-	// preview first 10 cells
-	printf("\nAperçu shared[0..9]:\n");
-	uint64_t show = tab_size < 10 ? tab_size : 10;
-	for (uint64_t i = 0; i < show; ++i) printf(" [%3lu] = %d\n", (unsigned long)i, shared_tab[i]);
+	printf("Largeur naive         : %.6f %%\n", largeur);
+
+	printf("Moyenne par classe    : %.2f\n", mean);
+	printf("Écart-type            : %.4f\n", stddev);
+	printf("Coefficient variation : %.4f (%.2f %%)\n", cv, cv * 100.0);
+
+	printf("Chi²                  : %.2f\n", chi2);
+	printf("Degrés de liberté     : %d\n", nb_classes - 1);
 }

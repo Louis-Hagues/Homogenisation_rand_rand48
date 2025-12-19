@@ -10,7 +10,10 @@
 /* Nombre de fils à lancer */
 #define NB_FILS 20
 
-/* Itérations totales par machine (107,5 milliards) */
+/* Itérations totales par machine (107,5 milliards) pour avoir plus de résultat */
+// #define ITER_PER_MACHINE 107500000000LL
+
+/* Itérations totales par machine (1 millions) pour test rapide */
 #define ITER_PER_MACHINE 1000000LL
 
 /* Prototypes */

@@ -24,7 +24,6 @@ int get_local_ip(char *out, size_t outlen);
 /* constants */
 #define DEFAULT_PORT 5000
 #define SHM_PERMISSIONS (0600)
-#define SEMNAME_SERVER "/sem_mc_project_v1"
 
 int main(int argc, char **argv) {
 	if (argc < 2) {
@@ -92,19 +91,9 @@ int main(int argc, char **argv) {
 		if (shared == (void*)-1) { perror("shmat"); shmctl(shmid, IPC_RMID, NULL); close(client_fd); close(server_sock); return 1; }
 		memset(shared, 0, (size_t)tab_size * sizeof(int));
 
-		sem_t *sem = sem_open(SEMNAME_SERVER, O_CREAT, 0644, 1);
-		if (sem == SEM_FAILED) 
-		{ 
-			perror("sem_open"); 
-			shmdt(shared); 
-			shmctl(shmid, IPC_RMID, NULL); 
-			close(client_fd); 
-			close(server_sock); 
-			return 1; 
-		}
-
+	
 		printf("Serveur: lancement du traitement local %lld de tirages...\n",ITER_PER_MACHINE);
-		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
+		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice) != 0) {
 			fprintf(stderr, "Erreur traitement serveur\n");
 		} else {
 			printf("Serveur: traitement local terminé.\n");
@@ -148,8 +137,6 @@ int main(int argc, char **argv) {
 
 		shmdt(shared);
 		shmctl(shmid, IPC_RMID, NULL);
-		sem_close(sem);
-		sem_unlink(SEMNAME_SERVER);
 		close(client_fd);
 		close(server_sock);
 		return 0;
@@ -183,18 +170,8 @@ int main(int argc, char **argv) {
 		}
 		memset(shared, 0, (size_t)tab_size * sizeof(int));
 
-		sem_t *sem = sem_open(SEMNAME_SERVER, O_CREAT, 0644, 1);
-		if (sem == SEM_FAILED) 
-		{ 
-			perror("sem_open client"); 
-			shmdt(shared); 
-			shmctl(shmid, IPC_RMID, NULL); 
-			close(sock); 
-			return 1; 
-		}
-
 		printf("Client: lancement du traitement local (500M iterations)...\n");
-		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
+		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice) != 0) {
 			fprintf(stderr, "Erreur traitement client\n");
 		} else {
 			printf("Client: traitement local terminé.\n");
@@ -233,7 +210,6 @@ int main(int argc, char **argv) {
 		
 		shmdt(shared);
 		shmctl(shmid, IPC_RMID, NULL);
-		sem_close(sem);
 		close(sock);
 		return 0;
 	}

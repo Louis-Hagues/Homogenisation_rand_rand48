@@ -36,7 +36,7 @@ static void child_work(int *shared_tab, uint64_t tab_size, long long iter_child,
 }
 
 int run_parallel_shared(int *shared_tab, uint64_t tab_size, long long iter_per_machine,
-						int rng_type, const char *sem_name) {
+						int rng_type) {
 	if (!shared_tab) return -1;
 	if (tab_size == 0) return -1;
 

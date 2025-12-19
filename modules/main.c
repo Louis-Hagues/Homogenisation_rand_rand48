@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 			return 1; 
 		}
 
-		printf("Serveur: lancement du traitement local %lld de tirages...\n",ITER_PER_MACHINE);
+		printf("Serveur: lancement du traitement local %lld de tirages...\n", ITER_PER_MACHINE);
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
 			fprintf(stderr, "Erreur traitement serveur\n");
 		} else {
@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
 			return 1; 
 		}
 
-		printf("Client: lancement du traitement local (500M iterations)...\n");
+		printf("Client: lancement du traitement local %lld d'itérations\n",ITER_PER_MACHINE );
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice, SEMNAME_SERVER) != 0) {
 			fprintf(stderr, "Erreur traitement client\n");
 		} else {

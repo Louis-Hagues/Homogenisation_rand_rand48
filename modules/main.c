@@ -14,6 +14,7 @@
 
 #include "programme/traitement.h"
 
+/* Prototypes des fonctions utilitaires réseau */
 int create_server_socket(int port, int backlog);
 int accept_client(int server_sock);
 int create_client_and_connect(const char *server_ip, int port);
@@ -27,6 +28,7 @@ int get_local_ip(char *out, size_t outlen);
 
 
 int main(int argc, char **argv) {
+	/* --- ANALYSE DES ARGUMENTS --- */
 	if (argc < 2) {
 		fprintf(stderr, "Usage:\n  %s server [port]\n  %s client <server_ip> [port]\n", argv[0], argv[0]);
 		return 1;
@@ -48,7 +50,7 @@ int main(int argc, char **argv) {
 		if (argc >= 4) port = atoi(argv[3]);
 	}
 
-
+	/* --- GESTION DE LA TAILLE DU TABLEAU --- */
 	uint64_t tab_size = (uint64_t)TAB_SIZE_DEFAULT;
 	printf("TAB_SIZE = %lu (elements) -> ~%.2f GB for int32 array\n",
 		   (unsigned long)tab_size,
@@ -57,6 +59,7 @@ int main(int argc, char **argv) {
 		printf("ATTENTION: TAB_SIZE très grand. Assure-toi d'avoir suffisamment de RAM.\n");
 	}
 
+	/* --- LOGIQUE SERVEUR --- */
 	if (is_server) {
 		char local_ip[64] = {0};
 		if (get_local_ip(local_ip, sizeof(local_ip)) == 0) {
@@ -67,17 +70,18 @@ int main(int argc, char **argv) {
 
 		int server_sock = create_server_socket(port, 1);
 		if (server_sock < 0) return 1;
+
 		printf("Serveur: en attente d'un client sur le port %d...\n", port);
 		int client_fd = accept_client(server_sock);
 		if (client_fd < 0) { close(server_sock); return 1; }
 		printf("Client connecté.\n");
 
-
+		/* Synchronisation du RNG : Le serveur impose le choix au client */
 		int rng_choice = 0;
 		printf("Choisir RNG (0 = rand, 1 = drand48) : ");
 		if (scanf("%d", &rng_choice) != 1) rng_choice = 0;
 
-		int32_t rc_net = htonl(rng_choice);
+		int32_t rc_net = htonl(rng_choice); // Conversion format réseau
 		if (send_all(client_fd, &rc_net, sizeof(rc_net)) < 0) {
 			perror("send rng_choice");
 			close(client_fd); close(server_sock);
@@ -85,13 +89,14 @@ int main(int argc, char **argv) {
 		}
 		printf("RNG envoyé au client: %d\n", rng_choice);
 
-
+		/* Création de la mémoire partagée pour les processus fils locaux */
 		int shmid = shmget(IPC_PRIVATE, (size_t)tab_size * sizeof(int), IPC_CREAT | SHM_PERMISSIONS);
 		if (shmid < 0) { perror("shmget"); close(client_fd); close(server_sock); return 1; }
 		int *shared = (int*) shmat(shmid, NULL, 0);
 		if (shared == (void*)-1) { perror("shmat"); shmctl(shmid, IPC_RMID, NULL); close(client_fd); close(server_sock); return 1; }
 		memset(shared, 0, (size_t)tab_size * sizeof(int));
 
+		/* Calcul local */
 		printf("Serveur: lancement du traitement local %lld de tirages...\n", ITER_PER_MACHINE);
 		if (run_parallel_shared(shared, tab_size, ITER_PER_MACHINE, rng_choice) != 0) {
 			fprintf(stderr, "Erreur traitement serveur\n");
@@ -99,8 +104,8 @@ int main(int argc, char **argv) {
 			printf("Serveur: traitement local terminé.\n");
 		}
 
+		/* Réception et fusion des résultats du client (par blocs pour ne pas saturer le réseau) */
 		printf("Serveur: attente des données du client...\n");
-
 		const uint64_t block_elems = 1000000UL;
 		uint64_t elems_remaining = tab_size;
 		uint64_t idx = 0;
@@ -117,6 +122,7 @@ int main(int argc, char **argv) {
 			}
 
 			for (uint64_t i = 0; i < this_block; ++i) {
+				/* On ajoute les résultats du client aux résultats locaux */
 				uint32_t v = ntohl(buf[i]);
 				__atomic_fetch_add(&shared[idx + i], (int)v, __ATOMIC_SEQ_CST);
 			}
@@ -129,9 +135,8 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "Erreur: tab_size (%lu) dépasse INT_MAX, print_stats attend int nb_classes.\n",
 					(unsigned long)tab_size);
 		} else {
-			print_stats((long long)(2ULL * (unsigned long long)ITER_PER_MACHINE),
-						shared,
-						(int)tab_size);
+			/* Analyse finale globale */
+			print_stats((long long)(2ULL * (unsigned long long)ITER_PER_MACHINE), shared, (int)tab_size);
 		}
 
 
@@ -141,14 +146,15 @@ int main(int argc, char **argv) {
 		close(server_sock);
 		return 0;
 	}
-	else { /* client */
+	/* --- LOGIQUE CLIENT --- */
+	else {
 		const char *server_ip = argv[2];
 		int port_client = port;
 		int sock = create_client_and_connect(server_ip, port_client);
 		if (sock < 0) return 1;
 		printf("Connecté au serveur %s:%d\n", server_ip, port_client);
 
-
+		/* Récupération du choix RNG imposé par le serveur */
 		int32_t rc_net;
 		if (recv_all(sock, &rc_net, sizeof(rc_net)) < 0) {
 			perror("recv rng_choice");
@@ -158,6 +164,7 @@ int main(int argc, char **argv) {
 		int rng_choice = (int)ntohl(rc_net);
 		printf("RNG choisi par serveur: %d (%s)\n", rng_choice, rng_choice ? "drand48" : "rand");
 
+		/* Création mémoire partagée locale au client */
 		int shmid = shmget(IPC_PRIVATE, (size_t)tab_size * sizeof(int), IPC_CREAT | SHM_PERMISSIONS);
 		if (shmid < 0) { perror("shmget client"); close(sock); return 1; }
 		int *shared = (int*) shmat(shmid, NULL, 0);
@@ -178,6 +185,7 @@ int main(int argc, char **argv) {
 			printf("Client: traitement local terminé.\n");
 		}
 
+		/* Envoi des résultats locaux au serveur par blocs */
 		const uint64_t block_elems = 1000000UL;
 		uint64_t elems_remaining = tab_size;
 		uint64_t idx = 0;

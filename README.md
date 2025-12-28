@@ -1,8 +1,3 @@
-Parfait ✅
-Voici le **résumé global du projet**, mais **centré uniquement sur le niveau 2**, c’est-à-dire la **version distribuée sur deux ordinateurs (PC1 et PC2)**.
-
----
-
 # **Comment compiler ce projet**
 Avant d'expliquer quel est ce projet, voici la ligne pour compiler ce projet :
 gcc -O2 -std=c11 \ -o mc_main \ modules/main.c \ modules/programme/traitement.c \ modules/programme/socket.c \ -lpthread -lrt -lm

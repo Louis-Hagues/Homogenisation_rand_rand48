@@ -1,9 +1,36 @@
-# **Comment compiler ce projet**
-Avant d'expliquer quel est ce projet, voici la ligne pour compiler ce projet : #\n
-gcc -O2 -std=c11 \ -o mc_main \ modules/main.c \ modules/programme/traitement.c \ modules/programme/socket.c \ -lpthread -lrt -lm
+# 🛠️ Guide de Compilation et d'Exécution
 
-Pour le lancer il faudra tout simplement taper :
-./mc_main
+Ce projet est une application de calcul distribué haute performance. Il utilise le parallélisme local (multi-processus) et une architecture réseau Client-Serveur pour traiter des milliards de données.
+
+## 🏗️ 1. Compilation
+
+Utilisez la commande suivante dans votre terminal pour compiler l'intégralité des modules. Les drapeaux d'optimisation sont activés pour garantir la vitesse maximale des calculs.
+
+```bash
+gcc -O2 -std=c11 -o mc_main \ modules/main.c \ modules/programme/traitement.c \ modules/programme/socket.c \ -lpthread -lrt -lm
+```
+
+## 🚀 2. Mode d'emploi (Lancement)
+
+Le programme fonctionne en binôme. Pour une simulation complète, vous devez lancer le serveur en premier, puis le client.
+
+### Étape A : Lancer le Serveur
+Le serveur initialise la mémoire partagée, choisit l'algorithme de génération et attend la connexion d'un client pour fusionner les résultats.
+
+```bash
+./mc_main server 5000
+```
+
+### Étape B : Lancer le Client
+Le client doit se connecter à l'adresse IP du serveur pour recevoir les instructions et commencer sa part du calcul.
+
+```bash
+# Cas 1 : Test sur une seule machine (Local)
+./mc_main client 127.0.0.1 5000
+
+# Cas 2 : Test entre deux machines (Réseau)
+./mc_main client <IP_DU_SERVEUR> 5000
+```
 
 ---
 

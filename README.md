@@ -3,9 +3,19 @@ Voici le **résumé global du projet**, mais **centré uniquement sur le niveau 
 
 ---
 
+# **Comment compiler ce projet**
+Avant d'expliquer quel est ce projet, voici la ligne pour compiler ce projet :
+gcc -O2 -std=c11 \ -o mc_main \ modules/main.c \ modules/programme/traitement.c \ modules/programme/socket.c \ -lpthread -lrt -lm
+
+Pour le lancer il faudra tout simplement taper :
+./mc_main
+
+---
+
 # 🌐 **Résumé global du projet – Niveau 2 : deux PC en coopération**
 
 ---
+
 
 ## 🎯 **Objectif**
 

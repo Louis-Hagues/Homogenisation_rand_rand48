@@ -1,5 +1,5 @@
 # **Comment compiler ce projet**
-Avant d'expliquer quel est ce projet, voici la ligne pour compiler ce projet : \n
+Avant d'expliquer quel est ce projet, voici la ligne pour compiler ce projet : #\n
 gcc -O2 -std=c11 \ -o mc_main \ modules/main.c \ modules/programme/traitement.c \ modules/programme/socket.c \ -lpthread -lrt -lm
 
 Pour le lancer il faudra tout simplement taper :
